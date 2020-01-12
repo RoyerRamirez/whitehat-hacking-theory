@@ -1,0 +1,241 @@
+######################################### Section 4: Network Penetration #######################################################
+
+Network Basics:
+	* A network is a number of devices connected together. 
+	* Uses: Networks are used to transfer data between connected devices
+	* Both wifi and wired networks achieve the principal mentioned above using the same principles. 
+	* One device acts as a server, the server contains the data that is shared between the connected devices. 
+	* In most networks, the server is the router, and the shared data is the internet. 
+	* The only device in the network that has access to the shared data is the server. 
+	* All connected devices don't have direct access to the internet. 
+		** Example: Netgear is the server with internet access, and my MacBook Pro is Client 1, Vista computer is Client 2,.... etc. 
+
+Sniffing Basics - MAC address:
+	* Each network card has a physical static address assigned by the card manufacturer called MAC address (Media Access Control).
+	* This address is used between devices to identify each other and to transfer packets to the right place. 
+	* Therefore, each packet has a source MAC and a destination MAC. 
+	* Since MAC address is static, it can be used to trace you back to your device.
+	* Also some networks only allow only certain MAC addresses to join a certain network.  This is known as White List.
+	* A Black List MAC address only prevents those MAC addresses from connecting to the network. 
+	* The benefit of changing a MAC address is to bypass networks that have a White List or to take your MAC address off a Black List. 
+
+Instructions for changing your MAC address:
+	* First get MAC address for device:
+		** iwconfig
+			*** This should return a value of 'wlan0'
+	* ifconfig wlan0 down   
+		** Disables the wireless card
+	* macchanger --help
+		** This list all the options available with macchanger 
+	* macchanger --random wlan0
+		** We used a random MAC address generator.  See The help for more options 
+	* ifconfig wlan0 up
+
+
+
+Sniffing Basics - Wireless Modes
+* Manage Mode:
+	** Wireless device only captures packets that have my current MAC address. 
+* Monitor Mode: 
+	** Allows us to capture all the packets within our wi-fi range, and even all the packets that aren't directed for my device.
+ 
+	
+# Three Methods for setting up Monitor Mode ----------------------------
+
+* Method 1: Airodump-ng
+	** airmon-ng
+		*** This command list all the interfaces. 
+		*** Should be wlan0
+	** airmon-ng start wlan0
+	** iwconfig NAaME_OF_MOD	
+	** airmon-ng stop NAME_OF_MOD
+		*** This command kills this method. 
+
+* Method 2: Enabling Monitor Mode Manual (This method works for me)
+	** ifconfig wlan0 down
+	** iwconfig wlan0 mode monitor
+	** ifconfig wlan0 up
+	** iwconfig wlan0
+		*** Therefore, wlan0 is now in monitor mode.
+	** airodump-ng wlan0
+ 
+
+* Method 3: Enabling Monitor Mode Using Airmon-ng (This method works)
+	** airmon-ng
+	** ifconfig wlan0 down
+	** airmon-ng check kill
+	** airmon-ng start wlan0
+	** ifconfig wlan0
+	** iwconfig wlan0
+
+
+############################ Section 5: Network Penetration Testing  #########################################################
+
+###### Pre Connection Attacks
+Breaking Down Airodump-ng
+	* BSSID
+		** This is the MAC ID for the access point
+	* PWR
+		** This stands for power.  The closer the easier it is to sniff the packets from that network. 
+	* Beacons 
+		** These are the signals that the AP sends
+		** Beacons sends out information letting others know its there with certain MAC address. (Light house)
+		** Even hidden networks send out beacons
+	* Data
+		** The number of useful packets that we have sniffed.
+	* #/s
+		** number of data packets collected in the past 10 seconds. 
+	* CH 
+		** This stands for channels
+		** The channels that the device is broadcasting on. 
+	* MB 
+		** Maximum number of speeds that can be achieved by that access point.
+	* ENC
+		** This stands for encryption
+		** Types:
+			*** OPN - Open network
+			*** WPA
+			*** WPA2
+			*** WEP
+	* CIPHER
+		** Method used to desirer the encryption
+	* Auth
+		** Type of Authentication required to gain access. 
+
+
+###### Targeted Packet Sniffing Example:
+
+	* Commands:
+		airodump-ng --channel <NUMBER> --bssid <MAC_ADDRESS> -- write<PATH> wlan0
+		
+
+##### Creating a fake access point (HoneyPot) Theory:
+	* Fake access points are used for the following reasons:
+		* By creating an open AP, then this will attract a lot of clients, Therefore, they will connect automatically.
+		* Then we can sniff all the traffic created by the clients that connect to it b/c the traffic won't be encrypted. [NEVER CONNECT TO OPEN NETWORKS]
+	* In order to achieve this:
+		1. We need one card connected to the internet.
+		2. We need a second card to broadcast as an access point.
+	* Example of how it works:
+		* Client 1 send Wifi Card (acting broadcasting as AP) to access "google.com". 
+		* Wifi Card will send the request to the wired card which has internet access.
+		* Then brings the google packets to the Wifi Card
+		* The Wifi Card takes it to Client 1.
+
+##### Creating a Fake access point using Mana-Toolkit
+	* Mana-ToolKit automatically creates a new AP and starts sslstrip/firelamp and even
+		attempts to bypass HSTS which is used by GMail and Facebook.
+	* Mana has 3 main start scripts:
+		1. start-noupstream
+			** This starts an AP with NO interent connection
+		2. start-nat-simple
+			** This starts a regular AP using internet connection in the upstream interface.
+		3. start-nat-full
+			** starts AP with internet connection, it also starts sslstrip, sslsplit, firelamp & attempts to bypass HSTS.
+	* Commands:
+		** apt-get install mana-toolkit
+			*** command to install 
+		** gedit /etc/mana-toolkit/hostapd-mana.conf
+			*** This command creates a fake access point without internet
+		** gedit /usr/share/mana-toolkit/run-mana/start-nat-simple.sh
+			*** This command creates a fake access point with internet connection
+		** bash /usr/share/mana-toolkit/run-mana/start-nat-simple.sh
+			*** This command creates a fake access point with internet connection & will start sniffing. 
+			*** This command fails often, VERY alpha. 	
+
+	* Instructions to create HoneyPot:
+		** make sure wlan0 mode is in Managed
+			*** iwconfig
+		** leafpad /etc/mana-toolkitdtes the fake network settings in this text file
+				**** Check the following:
+					***** interface = wlan0
+		** leafpad /usr/share/mana-toolkit/run-mana/start-nat-simple.sh
+			*** Check the following:
+				**** upstream = eth0 (name of card supplying internet)
+				**** phy= wlan0 
+		** bash /usr/share/mana-toolkit/run-mana/start-nat-simple.sh	
+			*** bash will exicute this file.
+
+############################ Section 5: Network Penetration Testing - Gaining Access (WEP/WPA/WPA2 Cracking) ##############################
+
+###### Gaining Access to encrypted networks and things to consider.
+	* Note: If there is an open network then we can just connect to it without a password, else the target network uses an 
+		encryption key such as WEP, WPA, WPA2, etc... 
+
+###### WEP Cracking:
+* WEP is an old encryption, but its still used in some networks.
+* WEP uses an algorithm called RC4, where each packet is encrypted at the AP and is then decrypted at the client.
+* WEP insures that each packet has a unique key stream by using a random 24-bit Initializing Vector (IV), this Initializing Vector is contained in
+	in the packets as plain text.  In short terms, Initializing Vector means that in a busy netowrk we can collect more than two packets with the same 
+	Initializing Vector because all the random 24-bits will be exhausted, then we can use aircrack-ng to determine the key stream and the WEP key using statistical attacks. 
+* Conclusion:
+	The more Initializing Vectors that are collected, then the more likely it is to crack the key.
+
+
+###### WEP Cracking Basic Case Commands:
+* Set Wifi card in monitor mode
+* airodump-ng --bssid <BSSID> --channel <CHANNEL NUMBER> --write <PATH> wlan0
+* aircrack-ng basic-test-AP-01.cap. 
+	** Run this command while sniffing that network until it is cracked.
+
+
+##### WEP Cracking Packet Injection:
+* Theory: 
+	** Inject packets into the traffic in order to force the router to create new packets with new Initializing Vector's. This method is used when network traffic is low.
+* Before we can start injecting packets into the traffic, we have to authenticate our wifi card with the AP, because the AP's ignore any
+	requests that come from devices that are not associated with the AP. 
+	** Command:
+		 aireplay-ng --fakeauth 0 -a <BSSID> -h <KALI LINIX MAC ADDRESS> wlan0
+
+	** Note:
+		If the fake authentication was successful the value under the "AUTH" column in airodump-ng will change to "OPN"
+
+
+* Instructions:
+	* Set Wifi card in monitor mode
+	* pick network
+	* ifconfig wlan0
+		** Grab MAC address from Kali
+	* aireplay-ng --fakeauth 0 -a <BSSID> -h <KALI LINIX MAC ADDRESS> wlan0
+		** zero means do it once (--fakeauth 0)
+		** first address is the BSSID
+		** second address is the MAC address from Kali
+
+
+##### Packet Injection - ARP Request Replay:
+* Method: 
+	After associating with the target AP, we will wait for an ARP packet.  Then we will capture this packet and inject it into the traffic.  This will force the AP to generate a new ARP packet with a new Initializing Vector.  We then capture this new packet and inject into the traffic again.  This process is repeated until the number of Initializing Vector's captured is sufficient enough to crack the key. 
+
+* Commands:
+	 airodump-ng --bssid <BSSID> --channel <CHANNEL NUMBER> --write <PATH> wlan0
+	 aireplay-ng --fakeauth 0 -a <BSSID> -h <KALI LINIX MAC ADDRESS> wlan0
+	 aircrack-ng <PATH>/arp-request.cap
+		** Use a fourth screen to run this terminal.
+		** "/arp-request.cap" is the filename that is storing all the data.
+
+
+
+
+##### WPA Cracking:
+* Notes:
+	** WPA was designed to address the issues in WEP and provide better encryption. 
+	** In WPA each packet is encrypted with a unique temporary key, this means that the number of data packets that we collect is irrelevant.
+	** WPA and WPA2 are similar, the only difference is that WPA2 uses an algorithm called CCMP
+
+
+##### WPA/WPA2 Cracking - Exploiting WPS Feature
+* Notes: 
+	** WPS is a feature that allows users to connect to WPS enabled networks easily. Users normally click the WPS button to gain access to the network. 
+	** Authentication is done using an 8 digit pin.  This means that there is a relatively small number of pin combination and using brute force we can guess the pin in less than 10 hours.  
+	** A tool calle pin.
+	** The flaw mention above is in the WPS feature and not in the WPA/WPA2.  However it allows us to crack any WPA/WPA2 AP without using a wordlist and wout any clients.
+
+
+* Commands:
+	** wash -i wlan0
+		*** this command checks for networks that have WPS feature. 
+		*** Note: Networks with a WPS Locked "Yes" have WPS turned off
+	** reaver -b <BSSID> -c <CHANNEL NUMBEr> -i wlan0 -vv -L -N -d 15 -T .5 -r 3:15
+		
+
+
